@@ -1,0 +1,16 @@
+{
+  "name": "永裕光电 · 展会英语陪练",
+  "short_name": "展会陪练",
+  "description": "永裕光电 / 绿标半导体 展会英语术语、客户问答与跟读练习",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f1f3f7",
+  "theme_color": "#1256a0",
+  "icons": [
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
