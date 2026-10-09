@@ -972,6 +972,6 @@ window.__yyCheck = () => ({
   tts: ('speechSynthesis' in window), asr: !!SR
 });
 </script>
-<script>(function(){if(location.protocol.indexOf("http")!==0||!("serviceWorker" in navigator))return;window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(reg){try{reg.update();}catch(e){}}).catch(function(){});});var reloaded=false;navigator.serviceWorker.addEventListener("controllerchange",function(){if(reloaded)return;reloaded=true;location.reload();});})();</script>
+<script>(function(){if(location.protocol.indexOf("http")!==0||!("serviceWorker" in navigator))return;var hadController=!!navigator.serviceWorker.controller;var reloaded=false;navigator.serviceWorker.addEventListener("controllerchange",function(){if(!hadController||reloaded)return;reloaded=true;location.reload();});window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(reg){try{reg.update();}catch(e){}}).catch(function(){});});})();</script>
 </body>
 </html>
