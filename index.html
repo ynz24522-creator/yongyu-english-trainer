@@ -568,6 +568,7 @@ document.addEventListener('click', ev=>{
   if(d.restart!==undefined){ ST.start = todayKey(); save(); render(); return; }
   if(d.export!==undefined){ exportProgress(); return; }
   if(d.autotest!==undefined){ runSelfTest(); return; }
+  if(d.update!==undefined){ forceUpdate(); return; }
   if(d.accent){ ST.settings.accent = d.accent; save(); $('#btnAccent').textContent = d.accent==='uk'?'英音':'美音'; render(); return; }
   if(d.rate){ ST.settings.rate = +d.rate; save(); render(); return; }
   if(d.hidecn){ ST.settings.hideCn = !ST.settings.hideCn; save(); render(); return; }
@@ -822,6 +823,7 @@ function viewMore(){
     + '<div class="hr"></div><div class="row between"><span>隐藏中文（进阶）</span>'
     + '<button class="btn sm '+(ST.settings.hideCn?'on':'')+'" data-hidecn="1">'+(ST.settings.hideCn?'已开启':'去中文只练英文')+'</button></div>'
     + '<div class="hr"></div><div class="row"><button class="btn" data-autotest="1">🩺 设备自检</button>'
+    + '<button class="btn" data-update="1">🔄 检查并更新到最新版</button>'
     + '<button class="btn" data-export="1">导出进度</button>'
     + '<button class="btn" data-restart="1">从今天重新开始 28 天</button>'
     + '<button class="btn bad" data-reset="1">清空进度</button></div>'
@@ -895,6 +897,27 @@ function exportProgress(){
     + '<textarea style="width:100%;height:40vh;margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px;font-family:ui-monospace,Menlo,monospace;background:var(--card);color:var(--txt)">'
     + esc(txt) + '</textarea>');
 }
+async function forceUpdate(){
+  openOverlay('<div class="row between"><b>检查更新</b><button class="btn sm gh" data-close="1">关闭</button></div>'
+    + '<div class="small" style="margin-top:8px" id="updMsg">正在清理旧缓存…</div>');
+  try{
+    if('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(function(r){ return r.unregister(); }));
+    }
+    if(window.caches){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(function(k){ return caches.delete(k); }));
+    }
+    const msg = document.getElementById('updMsg');
+    if(msg) msg.textContent = '已清理完成，正在重新加载最新版本…';
+    setTimeout(function(){ location.reload(true); }, 600);
+  }catch(e){
+    const msg = document.getElementById('updMsg');
+    if(msg) msg.textContent = '清理时遇到问题：' + (e && e.message ? e.message : e) + '，正在重新加载…';
+    setTimeout(function(){ location.reload(); }, 1200);
+  }
+}
 
 /* ============================ 路由与渲染 ============================ */
 const S = {tab:'today', tcat:'all', tq:'', qcat:'all', qq:'', sq:'', doc:'yy', seriesFocus:null};
@@ -949,6 +972,6 @@ window.__yyCheck = () => ({
   tts: ('speechSynthesis' in window), asr: !!SR
 });
 </script>
-<script>if(location.protocol.indexOf("http")===0&&"serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}</script>
+<script>(function(){if(location.protocol.indexOf("http")!==0||!("serviceWorker" in navigator))return;window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(reg){try{reg.update();}catch(e){}}).catch(function(){});});var reloaded=false;navigator.serviceWorker.addEventListener("controllerchange",function(){if(reloaded)return;reloaded=true;location.reload();});})();</script>
 </body>
 </html>

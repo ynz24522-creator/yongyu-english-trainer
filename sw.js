@@ -15,7 +15,7 @@ self.addEventListener('fetch', e => {
   const isDocument = req.mode === 'navigate' || req.destination === 'document';
   if (isDocument) {
     e.respondWith(
-      fetch(req).then(res => {
+      fetch(req, { cache: 'no-cache' }).then(res => {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
         return res;
