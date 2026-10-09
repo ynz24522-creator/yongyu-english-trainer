@@ -57,7 +57,9 @@ h3.blk{font-size:15px; margin:0 0 8px;}
   border:1px solid var(--line); background:var(--card); color:var(--txt); border-radius:10px;
   padding:9px 12px; font-size:14px; font-family:inherit; cursor:pointer;
 }
-.btn:active{transform:scale(.985);}
+.btn:active{transform:scale(.95);}
+@keyframes yypop{0%{transform:scale(1)}45%{transform:scale(1.12)}100%{transform:scale(1)}}
+.btn.pop{animation:yypop .28s ease;}
 .btn.pri{background:var(--brand); border-color:var(--brand); color:#fff; font-weight:600;}
 .btn.gh{background:transparent;}
 .btn.sm{padding:6px 9px; font-size:12.5px; border-radius:9px;}
@@ -152,6 +154,14 @@ h3.blk{font-size:15px; margin:0 0 8px;}
 .list-plain{list-style:none; padding:0; margin:0;}
 .list-plain li{padding:8px 0; border-top:1px solid var(--line); font-size:14px;}
 .kbd{font-family:ui-monospace,Menlo,monospace; font-size:12.5px; background:var(--chip); padding:1px 5px; border-radius:5px;}
+.toast{
+  position:fixed; left:50%; bottom:calc(96px + var(--safe-b)); transform:translate(-50%,14px);
+  background:rgba(13,63,120,.95); color:#fff; padding:9px 16px; border-radius:999px;
+  font-size:13.5px; opacity:0; pointer-events:none; z-index:80; max-width:82vw; text-align:center;
+  transition:opacity .18s ease, transform .18s ease;
+}
+.toast.show{opacity:1; transform:translate(-50%,0);}
+.cb.on{background:var(--ok); border-color:var(--ok); color:#fff;}
 @media (max-width:360px){ .en{font-size:17.5px;} }
 </style>
 <meta name="robots" content="noindex,nofollow">
@@ -284,10 +294,10 @@ function header(title, sub){ $('#subtitle').textContent = sub || title || ''; }
 function termCard(t, opts){
   opts = opts || {};
   const s = ST.terms[t.id] || 0;
-  const badge = s===2?'<span class="tag g">已掌握</span>' : s===1?'<span class="tag y">待复习</span>' : '';
   const hideCn = ST.settings.hideCn;
-  return '<div class="card" data-term="'+t.id+'">'
-    + '<div class="row between" style="margin-bottom:6px"><div><span class="tag b">'+CAT_CN[t.cat]+'</span>'+badge+'</div>'
+  return '<div class="card" data-card="term:'+t.id+'" data-term="'+t.id+'">'
+    + '<div class="row between" style="margin-bottom:6px"><div><span class="tag b">'+CAT_CN[t.cat]+'</span>'
+    + '<span data-badge="term:'+t.id+'">'+badgeHTML('term',t.id)+'</span></div>'
     + '<button class="btn sm gh" data-fav="'+t.id+'">'+(ST.favs[t.id]?'★':'☆')+'</button></div>'
     + '<div class="en">'+esc(t.en)+'</div>'
     + '<div class="ipa">'+esc(ST.settings.accent==='uk'?(t.ipa_uk||t.ipa):t.ipa)+'</div>'
@@ -314,9 +324,9 @@ function termCard(t, opts){
 
 function qaCard(q, open){
   const s = ST.qa[q.id] || 0;
-  return '<div class="card" data-qa="'+q.id+'">'
+  return '<div class="card" data-card="qa:'+q.id+'" data-qa="'+q.id+'">'
     + '<div class="row between"><span class="tag b">'+QCAT_CN[q.cat]+'</span>'
-    + (s===2?'<span class="tag g">已掌握</span>':s===1?'<span class="tag y">待复习</span>':'')+'</div>'
+    + '<span data-badge="qa:'+q.id+'">'+badgeHTML('qa',q.id)+'</span></div>'
     + '<div class="qhead" style="margin-top:8px">Q: '+esc(q.q_en)+'</div>'
     + '<div class="row" style="margin-top:6px"><span class="small">'+esc(q.q_cn)+'</span></div>'
     + '<div class="row" style="margin-top:8px">'
@@ -343,6 +353,98 @@ function qaCard(q, open){
     +     '<button class="btn sm warn'+(s===1?' on':'')+'" data-qmark="'+q.id+':1">待复习</button>'
     +   '</div>'
     + '</div></div>';
+}
+
+/* ---------- 状态徽标与就地同步（不重绘、不滚动） ---------- */
+function badgeHTML(kind, id){
+  if(kind==='term'){
+    const v = ST.terms[id]||0;
+    if(v===2) return '<span class="tag g">已掌握</span>';
+    if(v===1) return '<span class="tag y">待复习</span>';
+    if(v===3) return '<span class="tag y">不认识</span>';
+    return '';
+  }
+  const v = ST.qa[id]||0;
+  if(v===2) return '<span class="tag g">已掌握</span>';
+  if(v===1) return '<span class="tag y">待复习</span>';
+  return '';
+}
+function syncCard(kind, id){
+  const key = kind+':'+id;
+  document.querySelectorAll('[data-badge="'+key+'"]').forEach(function(el){ el.innerHTML = badgeHTML(kind,id); });
+  const attr = kind==='term' ? 'data-mark' : 'data-qmark';
+  const v = kind==='term' ? (ST.terms[id]||0) : (ST.qa[id]||0);
+  document.querySelectorAll('['+attr+'^="'+id+':"]').forEach(function(b){
+    const val = +(String(b.getAttribute(attr)).split(':')[1]||0);
+    b.classList.toggle('on', val===v);
+  });
+  if(kind==='term'){
+    document.querySelectorAll('[data-fav="'+id+'"]').forEach(function(b){ b.textContent = ST.favs[id] ? '★' : '☆'; });
+  }
+}
+function counters(){
+  const doneTasks = PLAN.reduce(function(a,d){ return a + d.tasks.filter(function(t,k){ return !!ST.tasks['d'+d.day+'t'+k]; }).length; }, 0);
+  const totalTasks = PLAN.reduce(function(a,d){ return a + d.tasks.length; }, 0);
+  const termsKnown = TERMS.filter(function(t){ return ST.terms[t.id]===2; }).length;
+  const qaKnown = QA.filter(function(q){ return ST.qa[q.id]===2; }).length;
+  const qaReview = QA.filter(function(q){ return ST.qa[q.id]===1; }).length;
+  const weak = TERMS.filter(function(t){ return ST.terms[t.id]===3 || ST.terms[t.id]===1; }).length + qaReview;
+  return {
+    'terms-known': termsKnown,
+    'terms-unknown': TERMS.filter(function(t){ return ST.terms[t.id]===3; }).length,
+    'terms-total': TERMS.length,
+    'qa-known': qaKnown,
+    'qa-review': qaReview,
+    'qa-total': QA.length,
+    'weak': weak,
+    'tasks-done': doneTasks,
+    'tasks-total': totalTasks
+  };
+}
+function syncCounters(){
+  const c = counters();
+  Object.keys(c).forEach(function(name){
+    document.querySelectorAll('[data-count="'+name+'"]').forEach(function(el){ el.textContent = c[name]; });
+  });
+  const pct = c['tasks-total'] ? Math.round(c['tasks-done']/c['tasks-total']*100) : 0;
+  document.querySelectorAll('[data-progress="tasks"]').forEach(function(el){ el.style.width = pct + '%'; });
+}
+function syncTasks(key){
+  const done = !!ST.tasks[key];
+  document.querySelectorAll('[data-task="'+key+'"]').forEach(function(b){
+    b.classList.toggle('on', done);
+    const row = b.closest ? b.closest('.task') : null;
+    if(row) row.classList.toggle('done', done);
+  });
+  PLAN.forEach(function(d){
+    const all = d.tasks.every(function(t,k){ return !!ST.tasks['d'+d.day+'t'+k]; });
+    document.querySelectorAll('[data-daycard="'+d.day+'"]').forEach(function(c){ c.classList.toggle('done', all); });
+  });
+  syncCounters();
+}
+function syncDayToggle(day){
+  const d = PLAN[day-1]; if(!d) return;
+  const allDone = d.tasks.every(function(t,k){ return !!ST.tasks['d'+d.day+'t'+k]; });
+  document.querySelectorAll('[data-daytoggle="'+day+'"]').forEach(function(b){
+    b.textContent = allDone ? '取消今天的完成标记' : '把今天全部标记为完成';
+    b.classList.toggle('on', allDone);
+  });
+}
+let toastTimer = null;
+function toast(msg){
+  let el = document.getElementById('toast');
+  if(!el){ el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 900);
+}
+function pop(el){
+  if(!el || !el.classList) return;
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
+  setTimeout(function(){ el.classList.remove('pop'); }, 320);
 }
 
 function pitchCard(p, idx){
@@ -430,11 +532,35 @@ document.addEventListener('click', ev=>{
   if(d.speak){ speak(d.speak); setTimeout(()=>speakSheet(d.speak, ''),300); return; }
   if(d.playall){ playAll(P_BY_ID[d.playall]); return; }
   if(d.openpitch){ openPitch(d.openpitch); return; }
-  if(d.fav!==undefined){ ST.favs[d.fav] = !ST.favs[d.fav]; save(); render(); return; }
-  if(d.mark){ const p = d.mark.split(':'); ST.terms[p[0]] = (ST.terms[p[0]]===+p[1] ? 0 : +p[1]); save(); render(); return; }
-  if(d.qmark){ const p = d.qmark.split(':'); ST.qa[p[0]] = (ST.qa[p[0]]===+p[1] ? 0 : +p[1]); save(); render(); return; }
+  if(d.fav!==undefined){
+    const id = d.fav, on = !ST.favs[id];
+    ST.favs[id] = on; save();
+    syncCard('term', id);
+    pop(el);
+    toast(on ? '已加入收藏 ★' : '已取消收藏');
+    return;
+  }
+  if(d.mark){
+    const p = d.mark.split(':'), id = p[0], v = +p[1];
+    const now = (ST.terms[id]===v ? 0 : v);
+    ST.terms[id] = now; save();
+    syncCard('term', id); syncCounters();
+    pop(el);
+    toast(now===0 ? '已取消标记' : '已标记：' + (now===2?'认识':now===1?'模糊':'不认识'));
+    return;
+  }
+  if(d.qmark){
+    const p = d.qmark.split(':'), id = p[0], v = +p[1];
+    const now = (ST.qa[id]===v ? 0 : v);
+    ST.qa[id] = now; save();
+    syncCard('qa', id); syncCounters();
+    pop(el);
+    toast(now===0 ? '已取消标记' : '已标记：' + (now===2?'已掌握':'待复习'));
+    return;
+  }
   if(d.toggleAns!==undefined){ const box = document.getElementById('ans-'+d.toggleAns); if(box) box.classList.toggle('hidden'); return; }
-  if(d.task!==undefined){ toggleTask(d.task); return; }
+  if(d.task!==undefined){ pop(el); toggleTask(d.task); return; }
+  if(d.daytoggle!==undefined){ pop(el); toggleDay(+d.daytoggle); return; }
   if(d.opensession!==undefined){ if(d.opensession!=='random') openSession(d.opensession); return; }
   if(d.openpage!==undefined){ openPage(d.openpage); return; }
   if(d.go!==undefined){ S.tab = d.go; render(); return; }
@@ -472,27 +598,23 @@ function openPitch(id){
 /* ============================ 视图：今日 ============================ */
 function viewToday(){
   const day = dayIndex();
-  const totalTasks = PLAN.reduce((a,d)=>a+d.tasks.length,0);
-  const doneTasks = Object.keys(ST.tasks).filter(k=>ST.tasks[k]).length;
-  const mastered = Object.values(ST.terms).filter(v=>v===2).length;
-  const qMastered = Object.values(ST.qa).filter(v=>v===2).length;
-  const weak = Object.keys(ST.terms).filter(k=>ST.terms[k]===3).length + Object.keys(ST.qa).filter(k=>ST.qa[k]===1).length;
+  const c = counters();
   let h = '<div class="card qhero"><div class="sb">距展会冲刺 · 第 ' + day + ' / 28 天</div>'
     + '<div class="big" style="margin-top:6px">' + (PLAN[day-1] ? esc(PLAN[day-1].theme_cn) : '自由练习') + '</div>'
     + '<div class="sb" style="margin-top:6px">今日任务 ' + (PLAN[day-1]?PLAN[day-1].tasks.length:0) + ' 项 · 建议 ' + (PLAN[day-1]?PLAN[day-1].minutes:15) + ' 分钟</div>'
     + '<div class="row" style="margin-top:12px"><button class="btn" data-opensession="'+(day-1)+'" style="background:#fff;color:var(--brand);border-color:#fff;font-weight:600">▶ 开始今天的学习</button></div></div>'
     + '<div class="card"><div class="stat">'
-    + '<div><b>' + mastered + '</b><span>术语已掌握</span></div>'
-    + '<div><b>' + qMastered + '</b><span>问答已掌握</span></div>'
-    + '<div><b>' + weak + '</b><span>待复习</span></div>'
-    + '<div><b>' + doneTasks + '</b><span>完成任务</span></div></div>'
-    + '<div class="hr"></div><div class="small" style="margin-bottom:6px">总进度 ' + doneTasks + ' / ' + totalTasks + ' 项任务</div>'
-    + '<div class="prog"><i style="width:' + Math.round(doneTasks/totalTasks*100) + '%"></i></div></div>';
+    + '<div><b data-count="terms-known">' + c['terms-known'] + '</b><span>术语已掌握</span></div>'
+    + '<div><b data-count="qa-known">' + c['qa-known'] + '</b><span>问答已掌握</span></div>'
+    + '<div><b data-count="weak">' + c['weak'] + '</b><span>待复习</span></div>'
+    + '<div><b data-count="tasks-done">' + c['tasks-done'] + '</b><span>完成任务</span></div></div>'
+    + '<div class="hr"></div><div class="small" style="margin-bottom:6px">总进度 <span data-count="tasks-done">' + c['tasks-done'] + '</span> / <span data-count="tasks-total">' + c['tasks-total'] + '</span> 项任务</div>'
+    + '<div class="prog"><i data-progress="tasks" style="width:' + Math.round(c['tasks-done']/c['tasks-total']*100) + '%"></i></div></div>';
   h += '<h2 class="sec">28 天计划</h2>';
   PLAN.forEach((d,i)=>{
     const allDone = d.tasks.every((t,k)=>ST.tasks['d'+d.day+'t'+k]);
     const isNow = (i+1)===day;
-    h += '<div class="card day ' + (allDone?'done ':'') + (isNow?'now':'') + '">'
+    h += '<div class="card day ' + (allDone?'done ':'') + (isNow?'now':'') + '" data-daycard="' + d.day + '">'
       + '<div class="dh"><div class="dn">' + d.day + '</div><div class="sp"><div style="font-weight:600">' + esc(d.theme_cn) + '</div>'
       + '<div class="small">' + d.tasks.length + ' 项 · 约 ' + d.minutes + ' 分钟</div></div>'
       + (isNow?'<span class="tag b">今天</span>':'')+'</div>'
@@ -507,7 +629,22 @@ function viewToday(){
   });
   return h;
 }
-function toggleTask(key){ ST.tasks[key] = !ST.tasks[key]; save(); render(); }
+function toggleTask(key){
+  ST.tasks[key] = !ST.tasks[key];
+  save();
+  syncTasks(key);
+  toast(ST.tasks[key] ? '已完成：这项' : '已取消完成');
+}
+function toggleDay(day){
+  const d = PLAN[day-1]; if(!d) return;
+  const keys = d.tasks.map((t,k)=>'d'+d.day+'t'+k);
+  const allDone = keys.every(k=>!!ST.tasks[k]);
+  keys.forEach(k=>{ ST.tasks[k] = !allDone; });
+  save();
+  keys.forEach(k=>syncTasks(k));
+  syncDayToggle(day);
+  toast(allDone ? '已取消今天的完成标记' : '今天全部标记为完成');
+}
 function startDay(i){ ST.start = new Date(Date.now() - i*86400000).toISOString().slice(0,10); save(); S.tab='today'; render(); }
 
 function openSession(dayIdx){
@@ -525,8 +662,9 @@ function openSession(dayIdx){
     else if(t.kind==='mock') html += mockBlock();
     html += '</div>';
   });
-  html += '<div class="row" style="margin-top:12px"><button class="btn pri" data-task="d'+d.day+'t0" id="doneAll">标记为已完成</button></div>';
+  html += '<div class="row" style="margin-top:12px"><button class="btn pri" data-daytoggle="'+d.day+'" id="doneAll">把今天全部标记为完成</button></div>';
   openOverlay(html);
+  syncDayToggle(d.day);
 }
 function reviewBlock(){
   const weakT = TERMS.filter(t=>ST.terms[t.id]===3 || ST.terms[t.id]===1 || ST.favs[t.id]).slice(0,40);
@@ -550,12 +688,12 @@ function mockBlock(){
 function viewTerms(){
   const cats = ['all','spec','product','process','biz','company','weak','fav'];
   const catCn = {all:'全部', spec:'规格参数', product:'产品系列', process:'工艺品质', biz:'商务认证', company:'公司介绍', weak:'待复习', fav:'收藏'};
-  const known = TERMS.filter(t=>ST.terms[t.id]===2).length;
+  const c = counters();
   let h = '<div class="card"><div class="stat">'
-    + '<div><b>'+known+'</b><span>已掌握</span></div>'
-    + '<div><b>'+(TERMS.filter(t=>ST.terms[t.id]===3).length)+'</b><span>不认识</span></div>'
-    + '<div><b>'+TERMS.length+'</b><span>术语总数</span></div></div>'
-    + '<div class="hr"></div><div class="prog"><i style="width:'+Math.round(known/TERMS.length*100)+'%"></i></div></div>';
+    + '<div><b data-count="terms-known">'+c['terms-known']+'</b><span>已掌握</span></div>'
+    + '<div><b data-count="terms-unknown">'+c['terms-unknown']+'</b><span>不认识</span></div>'
+    + '<div><b data-count="terms-total">'+c['terms-total']+'</b><span>术语总数</span></div></div>'
+    + '<div class="hr"></div><div class="prog"><i style="width:'+Math.round(c['terms-known']/TERMS.length*100)+'%"></i></div></div>';
   h += '<div class="search"><input id="tq" placeholder="搜索中英文术语…" value="'+esc(S.tq||'')+'" autocomplete="off"></div>';
   h += '<div class="chips">'+cats.map(c=>'<button class="chip '+(S.tcat===c?'on':'')+'" data-chip="'+c+'" data-kind="tcat">'+catCn[c]+'</button>').join('')+'</div>';
   h += '<div id="tlist">'+termsResults()+'</div>';
@@ -630,11 +768,11 @@ function openPage(ref){
 /* ============================ 视图：问答 ============================ */
 function viewQA(){
   const cats = ['all', ...Object.keys(QCAT_CN)];
-  const m = QA.filter(q=>ST.qa[q.id]===2).length;
+  const c = counters();
   let h = '<div class="card"><div class="stat">'
-    + '<div><b>'+m+'</b><span>已掌握</span></div>'
-    + '<div><b>'+QA.filter(q=>ST.qa[q.id]===1).length+'</b><span>待复习</span></div>'
-    + '<div><b>'+QA.length+'</b><span>题目总数</span></div></div></div>';
+    + '<div><b data-count="qa-known">'+c['qa-known']+'</b><span>已掌握</span></div>'
+    + '<div><b data-count="qa-review">'+c['qa-review']+'</b><span>待复习</span></div>'
+    + '<div><b data-count="qa-total">'+c['qa-total']+'</b><span>题目总数</span></div></div></div>';
   h += '<div class="row" style="margin-bottom:10px"><button class="btn pri" data-opensession="random">🎲 随机抽考 10 题</button>'
     + '<button class="btn" data-go="more">📖 看讲解稿</button></div>';
   h += '<div class="search"><input id="qq" placeholder="搜索客户问题（中/英）…" value="'+esc(S.qq||'')+'" autocomplete="off"></div>';
@@ -760,10 +898,10 @@ function exportProgress(){
 
 /* ============================ 路由与渲染 ============================ */
 const S = {tab:'today', tcat:'all', tq:'', qcat:'all', qq:'', sq:'', doc:'yy', seriesFocus:null};
-function render(){
+function render(keepScroll){
   const tab = S.tab.split(':')[0];
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
-  window.scrollTo(0,0);
+  if(!keepScroll) window.scrollTo(0,0);   // 仅在切换页面/筛选时回到顶部；标记操作走就地更新，不调用 render
   if(tab==='today'){ header('今日', '28 天冲刺计划'); main.innerHTML = viewToday(); }
   else if(tab==='terms'){ header('术语', TERMS.length+' 条中英对照专业术语'); main.innerHTML = viewTerms(); }
   else if(tab==='products'){ header('产品', PRODUCTS.length+' 个系列 · '+PRODUCTS.reduce((a,s)=>a+s.models.length,0)+' 个型号'); main.innerHTML = viewProducts(); }
